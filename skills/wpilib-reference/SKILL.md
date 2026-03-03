@@ -80,3 +80,9 @@ along with other simple conversion tools
 ## Common Objects
 You will often deal with the following types:
 Rotation2d, Translation2d, Pose2d, Pose3d
+
+# Further Reference
+Please refer to:
+- ctre_reference.md - for motor and control information
+- testing_reference.md - for testing information
+- advantagekit_reference.md - for subsystem and logging information in advantage kit style projects
