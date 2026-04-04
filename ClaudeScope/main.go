@@ -5,53 +5,24 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/levifitzpatrick1/go-nt4"
 )
 
-type RobotSession struct {
-	ntClient *nt4.Client
-	mu       sync.Mutex
-}
+// realNTClient wraps go-nt4's client to satisfy the NTClient interface.
+type realNTClient struct{ c *nt4.Client }
 
-func (s *RobotSession) connect(ip string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (r *realNTClient) Connect() error { return r.c.Connect() }
+func (r *realNTClient) Disconnect()    { r.c.Disconnect() }
 
-	if s.ntClient != nil {
-		return fmt.Errorf("already connected; run 'disconnect' first")
-	}
-
+func realFactory(ip string) (NTClient, error) {
 	opts := nt4.DefaultClientOptions(ip)
 	opts.Identity = "ClaudeScope"
-	client := nt4.NewClient(opts)
-
-	if err := client.Connect(); err != nil {
-		return fmt.Errorf("failed to connect: %w", err)
+	c := nt4.NewClient(opts)
+	if err := c.Connect(); err != nil {
+		return nil, err
 	}
-
-	s.ntClient = client
-	return nil
-}
-
-func (s *RobotSession) disconnect() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.ntClient == nil {
-		return fmt.Errorf("no active connection")
-	}
-
-	s.ntClient.Disconnect()
-	s.ntClient = nil
-	return nil
-}
-
-func (s *RobotSession) connected() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.ntClient != nil
+	return &realNTClient{c}, nil
 }
 
 func printHelp() {
@@ -68,7 +39,7 @@ func main() {
 	fmt.Println("Type 'help' for available commands.")
 	fmt.Println()
 
-	session := &RobotSession{}
+	session := NewRobotSession(realFactory)
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
