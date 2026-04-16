@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/ryan/go/pkg/mod/github.com/levifitzpatrick1/**)"
+    ]
+  }
+}
