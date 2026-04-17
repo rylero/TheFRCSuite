@@ -19,7 +19,7 @@ type wpilogSession struct {
 }
 
 // ParseWPILog parses a .wpilog binary and returns a ready-to-query session.
-func ParseWPILog(raw []byte) (*wpilogSession, error) {
+func ParseWPILog(raw []byte) (DataSession, error) {
 	r := bytes.NewReader(raw)
 
 	// Magic

@@ -78,7 +78,7 @@ func float64Bytes(v float64) []byte {
 	return b
 }
 
-func loadTestLog(t *testing.T) *wpilogSession {
+func loadTestLog(t *testing.T) DataSession {
 	t.Helper()
 	data := makeTestLog()
 	s, err := ParseWPILog(data)
