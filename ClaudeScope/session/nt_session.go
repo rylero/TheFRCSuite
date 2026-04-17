@@ -1,0 +1,197 @@
+package session
+
+import (
+	"fmt"
+	"sync"
+	"time"
+
+	nt4 "github.com/levifitzpatrick1/go-nt4"
+)
+
+// ntSession wraps a live go-nt4 client and implements DataSession.
+// Subscribes to all topics on connect and buffers all received values.
+type ntSession struct {
+	client      *nt4.Client
+	sub         *nt4.Subscription
+	mu          sync.RWMutex
+	history     map[string][]DataPoint // key → sorted data points
+	fieldMeta   map[string]string      // key → type string
+	connectedAt time.Time
+}
+
+// NewNTSession connects to an NT4 server at addr and returns a DataSession.
+func NewNTSession(addr string) (DataSession, error) {
+	opts := nt4.DefaultClientOptions(addr)
+	opts.Identity = "ClaudeScope"
+	c := nt4.NewClient(opts)
+	if err := c.Connect(); err != nil {
+		return nil, fmt.Errorf("NT4 connect failed: %w", err)
+	}
+	return NewNTSessionFromClient(c), nil
+}
+
+// NewNTSessionFromClient wraps an already-connected nt4.Client.
+func NewNTSessionFromClient(c *nt4.Client) DataSession {
+	s := &ntSession{
+		client:      c,
+		history:     make(map[string][]DataPoint),
+		fieldMeta:   make(map[string]string),
+		connectedAt: time.Now(),
+	}
+	sub := c.Subscribe([]string{"/"}, &nt4.SubscribeOptions{Prefix: true})
+	s.sub = sub
+	go s.pump(sub)
+	return s
+}
+
+func (s *ntSession) pump(sub *nt4.Subscription) {
+	for update := range sub.Updates() {
+		s.mu.Lock()
+		key := update.Topic.Name
+		s.fieldMeta[key] = update.Topic.Type
+		s.history[key] = append(s.history[key], DataPoint{
+			Timestamp: update.Timestamp,
+			Value:     update.Value,
+		})
+		s.mu.Unlock()
+	}
+}
+
+func (s *ntSession) Type() SessionType { return LiveSession }
+
+func (s *ntSession) Fields() ([]FieldInfo, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]FieldInfo, 0, len(s.fieldMeta))
+	for key, typ := range s.fieldMeta {
+		out = append(out, FieldInfo{Key: key, Type: typ})
+	}
+	return out, nil
+}
+
+func (s *ntSession) TimeRange() (int64, int64, error) {
+	elapsed := time.Since(s.connectedAt).Microseconds()
+	return 0, elapsed, nil
+}
+
+func (s *ntSession) GetValues(keys []string, _ int64) (map[string]*DataPoint, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make(map[string]*DataPoint, len(keys))
+	for _, key := range keys {
+		pts := s.history[key]
+		if len(pts) == 0 {
+			return nil, fmt.Errorf("key not found: %s", key)
+		}
+		cp := pts[len(pts)-1]
+		result[key] = &cp
+	}
+	return result, nil
+}
+
+func (s *ntSession) GetRanges(keys []string, start, end int64) (map[string][]DataPoint, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if end == 0 {
+		end = time.Since(s.connectedAt).Microseconds()
+	}
+	result := make(map[string][]DataPoint, len(keys))
+	for _, key := range keys {
+		pts := s.history[key]
+		var out []DataPoint
+		for _, p := range pts {
+			if p.Timestamp >= start && p.Timestamp <= end {
+				out = append(out, p)
+			}
+		}
+		result[key] = out
+	}
+	return result, nil
+}
+
+func (s *ntSession) FindBoolRanges(key string, value bool) ([]TimeRange, error) {
+	s.mu.RLock()
+	pts := s.history[key]
+	s.mu.RUnlock()
+	if pts == nil {
+		return nil, fmt.Errorf("key not found: %s", key)
+	}
+	tmp := &wpilogSession{
+		keyToID: map[string]uint32{key: 1},
+		data:    map[uint32][]DataPoint{1: pts},
+		end:     pts[len(pts)-1].Timestamp,
+	}
+	return tmp.FindBoolRanges(key, value)
+}
+
+func (s *ntSession) FindThresholdRanges(key string, min, max float64) ([]TimeRange, error) {
+	s.mu.RLock()
+	pts := s.history[key]
+	s.mu.RUnlock()
+	if pts == nil {
+		return nil, fmt.Errorf("key not found: %s", key)
+	}
+	tmp := &wpilogSession{
+		keyToID: map[string]uint32{key: 1},
+		data:    map[uint32][]DataPoint{1: pts},
+		end:     pts[len(pts)-1].Timestamp,
+	}
+	return tmp.FindThresholdRanges(key, min, max)
+}
+
+func (s *ntSession) Stats(key string, start, end int64) (*Stats, error) {
+	s.mu.RLock()
+	pts := s.history[key]
+	s.mu.RUnlock()
+	if pts == nil {
+		return nil, fmt.Errorf("key not found: %s", key)
+	}
+	if end == 0 {
+		end = pts[len(pts)-1].Timestamp
+	}
+	tmp := &wpilogSession{
+		keyToID: map[string]uint32{key: 1},
+		data:    map[uint32][]DataPoint{1: pts},
+		end:     end,
+	}
+	return tmp.Stats(key, start, end)
+}
+
+func (s *ntSession) Set(pairs map[string]any) error {
+	for key, val := range pairs {
+		s.mu.RLock()
+		typeStr, ok := s.fieldMeta[key]
+		s.mu.RUnlock()
+		if !ok {
+			// Publish as a new topic — infer type from value
+			typeStr = inferNTType(val)
+		}
+		topic := s.client.Publish(key, typeStr, nil)
+		s.client.SetValue(topic, val)
+	}
+	return nil
+}
+
+func (s *ntSession) Close() error {
+	if s.sub != nil {
+		s.client.Unsubscribe(s.sub)
+	}
+	s.client.Disconnect()
+	return nil
+}
+
+func inferNTType(v any) string {
+	switch v.(type) {
+	case float64, float32:
+		return nt4.TypeDouble
+	case bool:
+		return nt4.TypeBoolean
+	case int64, int:
+		return nt4.TypeInt
+	default:
+		return nt4.TypeString
+	}
+}
+
+// Compile-time check that ntSession satisfies DataSession.
+var _ DataSession = (*ntSession)(nil)
