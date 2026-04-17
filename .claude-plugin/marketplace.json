@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "thefrc-suite",
+  "description": "FRC robot development tools for Claude Code — ClaudeScope log analysis, WPILib reference, and AdvantageKit patterns",
+  "owner": {
+    "name": "Ryan LeRoy",
+    "url": "https://github.com/rylero"
+  },
+  "plugins": [
+    {
+      "name": "thefrc-suite",
+      "description": "Skills for FRC robot development: ClaudeScope wpilog analysis, WPILib reference, and AdvantageKit patterns.",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}
