@@ -1,0 +1,6 @@
+{
+  "name": "thefrc-suite",
+  "version": "1.0.0",
+  "description": "FRC robot development tools for Claude Code — ClaudeScope log analysis, WPILib reference, and AdvantageKit patterns",
+  "type": "module"
+}

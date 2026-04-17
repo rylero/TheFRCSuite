@@ -11,6 +11,19 @@ description: >
 
 ClaudeScope is a CLI tool that parses FRC `.wpilog` files and queries live NetworkTables. It runs a daemon on port 5812 (auto-starts on first use).
 
+## Setup
+
+Download the binary for your platform from the [GitHub Releases page](https://github.com/rylero/TheFRCSuite/releases) and add it to PATH:
+
+| Platform | Binary |
+|---|---|
+| Windows | `ClaudeScope-windows-amd64.exe` → rename to `ClaudeScope.exe` |
+| macOS (Apple Silicon) | `ClaudeScope-darwin-arm64` → rename to `ClaudeScope` |
+| macOS (Intel) | `ClaudeScope-darwin-amd64` → rename to `ClaudeScope` |
+| Linux | `ClaudeScope-linux-amd64` → rename to `ClaudeScope` |
+
+Verify: `ClaudeScope version`
+
 ## Workflow
 
 ```
@@ -25,7 +38,6 @@ ClaudeScope is a CLI tool that parses FRC `.wpilog` files and queries live Netwo
 - **Timestamps** are microseconds (µs) since log start.
 - **Negative start/end** = offset from end of log. `-5000000` = last 5 seconds.
 - **end=0** means end of log. **time=0** in `get` means latest value.
-- The binary is at `C:/Users/ryan/Dev/TheFRCSuite/ClaudeScope/ClaudeScope.exe` (or `ClaudeScope` if on PATH).
 
 ---
 
@@ -89,23 +101,27 @@ Returns: `{"mean":<f>,"median":<f>,"min":<f>,"max":<f>,"q1":<f>,"q3":<f>,"avg_de
 MSYS_NO_PATHCONV=1 ClaudeScope set /SmartDashboard/SetSpeed=2.5 --session <id>
 ```
 
+### Full machine-readable schema
+```bash
+ClaudeScope help
+```
+
 ---
 
 ## Common Analysis Patterns
 
 ### Superstructure state time analysis
 ```bash
-# 1. Get all state values across whole log
+# Get all state transitions across whole log
 MSYS_NO_PATHCONV=1 ClaudeScope range /RealOutputs/Superstructure/CurrentSuperState --session <id> --start 0 --end 0
-# 2. Parse the returned array to compute time-in-state (group by value, sum timestamp deltas)
+# Parse returned array: group by value, sum timestamp deltas to get time-in-state
 ```
 
 ### Swerve tracking error
 ```bash
-# Get setpoint and measured for one module
 MSYS_NO_PATHCONV=1 ClaudeScope range /RealOutputs/Drive/Module0/TurnSetpointRads --session <id>
 MSYS_NO_PATHCONV=1 ClaudeScope range /RealOutputs/Drive/Module0/TurnPositionRads --session <id>
-# Compute per-point error in your analysis
+# Compute per-point error; group by setpoint magnitude to identify velocity-proportional lag
 ```
 
 ### Find match periods
@@ -119,12 +135,5 @@ MSYS_NO_PATHCONV=1 ClaudeScope find-bool /RealOutputs/Robot/DSAttached true --se
 
 - Fields follow the pattern `/RealOutputs/<Subsystem>/<Field>` and `/RobotState/<Field>`
 - Struct fields (e.g. `SwerveModuleState`) are logged as `structschema` type (raw bytes); decode manually
-- Use `info` to discover field names before querying
+- Use `info` to discover all field names before querying
 - String fields hold enum values (e.g. superstructure states like `"IDLE"`, `"SHOOTING"`)
-
----
-
-## Full help (machine-readable schema)
-```bash
-ClaudeScope help
-```

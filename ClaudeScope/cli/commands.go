@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+// Version is set at build time via -ldflags.
+var Version = "dev"
+
 // RunCommand routes CLI args to the correct daemon endpoint.
 func RunCommand(args []string) ([]byte, error) {
 	if len(args) == 0 {
@@ -36,6 +39,8 @@ func RunCommand(args []string) ([]byte, error) {
 		return runSet(args[1:])
 	case "help":
 		return runHelp()
+	case "version":
+		return runVersion()
 	default:
 		return nil, fmt.Errorf("unknown subcommand: %s. Run 'help' for usage", args[0])
 	}
@@ -208,6 +213,10 @@ func runStats(args []string) ([]byte, error) {
 	})
 }
 
+func runVersion() ([]byte, error) {
+	return json.Marshal(map[string]string{"version": Version})
+}
+
 func runHelp() ([]byte, error) {
 	type param struct {
 		Name     string `json:"name"`
@@ -231,7 +240,7 @@ func runHelp() ([]byte, error) {
 
 	s := schema{
 		Tool:    "ClaudeScope",
-		Version: "1.0",
+		Version: Version,
 		Notes: []string{
 			"Daemon auto-starts on first use; port 5812.",
 			"All timestamps are microseconds (µs) since log start.",

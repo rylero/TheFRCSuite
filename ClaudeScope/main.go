@@ -11,7 +11,11 @@ import (
 	"github.com/rylero/TheFRCSuite/ClaudeScope/session"
 )
 
+// version is set at build time via -ldflags="-X main.version=..."
+var version = "dev"
+
 func main() {
+	cli.Version = version
 	args := os.Args[1:]
 
 	if len(args) > 0 && args[0] == "--daemon" {
