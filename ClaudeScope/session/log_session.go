@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 )
@@ -23,8 +24,8 @@ func ParseWPILog(raw []byte) (DataSession, error) {
 	r := bytes.NewReader(raw)
 
 	// Magic
-	magic := make([]byte, 7)
-	if _, err := r.Read(magic); err != nil || string(magic) != "WPILOG\x00" {
+	magic := make([]byte, 6)
+	if _, err := r.Read(magic); err != nil || string(magic) != "WPILOG" {
 		return nil, errors.New("invalid wpilog: bad magic")
 	}
 
@@ -52,55 +53,57 @@ func ParseWPILog(raw []byte) (DataSession, error) {
 	}
 
 	for r.Len() > 0 {
-		entryID, err := readVarint(r)
+		tag, err := r.ReadByte()
 		if err != nil {
 			break
 		}
-		payloadSize, err := readVarint(r)
-		if err != nil {
-			return nil, fmt.Errorf("wpilog: truncated record header")
-		}
-		timestamp, err := readVarint(r)
-		if err != nil {
-			return nil, fmt.Errorf("wpilog: truncated record header")
-		}
+
+		// Decode bitfield lengths (00=1B, 01=2B, 10=3B, 11=4B)
+		idLen := int((tag & 0x03) + 1)
+		sizeLen := int(((tag >> 2) & 0x03) + 1)
+		tsLen := int(((tag >> 4) & 0x07) + 1)
+
+		// Read the packed integers
+		entryID := uint32(readUintLE(r, idLen))
+		payloadSize := uint32(readUintLE(r, sizeLen))
+		timestamp := readUintLE(r, tsLen)
 
 		payload := make([]byte, payloadSize)
-		if _, err := r.Read(payload); err != nil {
-			return nil, fmt.Errorf("wpilog: truncated record payload")
+		if _, err := io.ReadFull(r, payload); err != nil {
+			break // truncated record at end of file (normal for FRC logs)
 		}
 
 		if entryID == 0 {
+			// ID 0 = Control Record. Start records populate the field map.
 			if err := s.applyControl(payload); err != nil {
-				return nil, fmt.Errorf("wpilog: control record: %w", err)
+				return nil, fmt.Errorf("control record error: %w", err)
 			}
 		} else {
-			id := uint32(entryID)
-			fi, ok := s.fields[id]
-			if !ok {
-				continue // unknown entry — skip
-			}
-			value, err := decodeValue(fi.Type, payload)
-			if err != nil {
-				continue // unparseable value — skip
-			}
-			ts := int64(timestamp)
-			s.data[id] = append(s.data[id], DataPoint{Timestamp: ts, Value: value})
-			if ts < s.start {
-				s.start = ts
-			}
-			if ts > s.end {
-				s.end = ts
+			// Regular data record
+			if fi, ok := s.fields[entryID]; ok {
+				val, _ := decodeValue(fi.Type, payload)
+				ts := int64(timestamp)
+				s.data[entryID] = append(s.data[entryID], DataPoint{Timestamp: ts, Value: val})
+				if ts < s.start {
+					s.start = ts
+				}
+				if ts > s.end {
+					s.end = ts
+				}
 			}
 		}
 	}
 
-	if s.start == math.MaxInt64 {
-		s.start = 0
-		s.end = 0
-	}
-
 	return s, nil
+}
+
+func readUintLE(r *bytes.Reader, n int) uint64 {
+	var val uint64
+	for i := 0; i < n; i++ {
+		b, _ := r.ReadByte()
+		val |= uint64(b) << (8 * i)
+	}
+	return val
 }
 
 func (s *wpilogSession) applyControl(payload []byte) error {
@@ -167,14 +170,7 @@ func decodeValue(typeStr string, payload []byte) (any, error) {
 		}
 		return payload[0] != 0, nil
 	case "string":
-		if len(payload) < 4 {
-			return nil, errors.New("short string")
-		}
-		length := binary.LittleEndian.Uint32(payload[:4])
-		if int(length) > len(payload)-4 {
-			return nil, errors.New("string length overflow")
-		}
-		return string(payload[4 : 4+length]), nil
+		return string(payload), nil
 	default:
 		return payload, nil
 	}

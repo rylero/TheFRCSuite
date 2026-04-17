@@ -14,19 +14,29 @@ import (
 func makeTestLog() []byte {
 	var buf bytes.Buffer
 
-	// Magic + version
-	buf.WriteString("WPILOG\x00")
-	buf.Write([]byte{0x00, 0x01}) // version 1.0 (LE: minor=0, major=1)
+	// Magic + version (6-byte magic, then LE uint16 version 0x0100)
+	buf.WriteString("WPILOG")
+	buf.Write([]byte{0x00, 0x01}) // version 0x0100 LE
 
-	// Extra header string (empty)
+	// Extra header (empty)
 	var extraLen [4]byte
 	binary.LittleEndian.PutUint32(extraLen[:], 0)
 	buf.Write(extraLen[:])
 
-	writeRecord := func(entryID uint64, timestamp uint64, payload []byte) {
-		writeVarintBuf(&buf, entryID)
-		writeVarintBuf(&buf, uint64(len(payload)))
-		writeVarintBuf(&buf, timestamp)
+	// writeRecord uses WPILib bitfield format:
+	// 1 header byte (bits 0-1=id_len-1, bits 2-3=ps_len-1, bits 4-6=ts_len-1)
+	// then LE integers for id, payload_size, timestamp, then payload bytes
+	writeRecord := func(entryID uint32, timestamp uint64, payload []byte) {
+		// Use fixed widths: id=1B (max255), ps=2B (max65535), ts=4B
+		// bitfield: id_len=1→00, ps_len=2→01, ts_len=4→011 → 0b0011_0100 = 0x34
+		buf.WriteByte(0x34)
+		buf.WriteByte(byte(entryID))
+		var ps [2]byte
+		binary.LittleEndian.PutUint16(ps[:], uint16(len(payload)))
+		buf.Write(ps[:])
+		var ts [4]byte
+		binary.LittleEndian.PutUint32(ts[:], uint32(timestamp))
+		buf.Write(ts[:])
 		buf.Write(payload)
 	}
 

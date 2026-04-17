@@ -27,6 +27,11 @@ type connectResponse struct {
 	SessionID string `json:"session_id"`
 }
 
+type connectResponseWFields struct {
+	SessionID string   `json:"session_id"`
+	Keys      []string `json:"keys"`
+}
+
 type loadRequest struct {
 	Path string `json:"path"`
 }
@@ -142,7 +147,8 @@ func HandleLoad(reg *Registry) http.HandlerFunc {
 			return
 		}
 		id := reg.Add(sess)
-		writeJSON(w, connectResponse{SessionID: id})
+		fields, _ := sess.Fields()
+		writeJSON(w, map[string]any{"session_id": id, "fields": fields})
 	}
 }
 
