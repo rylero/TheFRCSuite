@@ -15,7 +15,6 @@ Install the plugin to get all skills in Claude Code:
 
 **Included skills:**
 - `/scope` — Analyze `.wpilog` files and query live NetworkTables via ClaudeScope
-- `/wpilib-reference` — WPILib command-based framework patterns and reference
 - `/simulate` — Launch robot simulation, connect ClaudeScope, and run a goal-driven investigation headlessly
 
 ## ClaudeScope
