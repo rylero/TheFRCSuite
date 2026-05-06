@@ -307,6 +307,14 @@ func (s *wpilogSession) GetRanges(keys []string, start, end int64) (map[string][
 				out = append(out, p)
 			}
 		}
+		// If no points fell in the window, include the last value before start so
+		// the caller knows what was active at window open (carry-over).
+		if len(out) == 0 && len(pts) > 0 {
+			idx := sort.Search(len(pts), func(i int) bool { return pts[i].Timestamp > start }) - 1
+			if idx >= 0 {
+				out = append(out, pts[idx])
+			}
+		}
 		result[key] = out
 	}
 	return result, nil

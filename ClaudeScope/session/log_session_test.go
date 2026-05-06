@@ -237,6 +237,24 @@ func TestLogSession_Stats(t *testing.T) {
 	}
 }
 
+func TestLogSession_GetRanges_CarryOver(t *testing.T) {
+	// Window starts at t=2600, after the last /enabled change at t=2500.
+	// Expect carry-over: enabled=false (set at t=2500) returned even though
+	// no change occurred inside the window.
+	s := loadTestLog(t)
+	ranges, err := s.GetRanges([]string{"/enabled"}, 2600, 3000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pts := ranges["/enabled"]
+	if len(pts) != 1 {
+		t.Fatalf("expected 1 carry-over point, got %d", len(pts))
+	}
+	if pts[0].Value.(bool) != false {
+		t.Errorf("expected carry-over value false, got %v", pts[0].Value)
+	}
+}
+
 func TestLogSession_Set_ReturnsError(t *testing.T) {
 	s := loadTestLog(t)
 	err := s.Set(map[string]any{"/voltage": 12.0})
