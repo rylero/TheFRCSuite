@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -180,15 +181,39 @@ func (s *ntSession) Stats(key string, start, end int64) (*Stats, error) {
 
 func (s *ntSession) Set(pairs map[string]any) error {
 	for key, val := range pairs {
+		if err := s.checkChooserActive(key); err != nil {
+			return err
+		}
 		s.mu.RLock()
 		typeStr, ok := s.fieldMeta[key]
 		s.mu.RUnlock()
 		if !ok {
-			// Publish as a new topic — infer type from value
 			typeStr = inferNTType(val)
 		}
 		topic := s.client.Publish(key, typeStr, nil)
 		s.client.SetValue(topic, val)
+	}
+	return nil
+}
+
+// checkChooserActive returns an error when the caller tries to set a SendableChooser's
+// "active" field. The robot re-publishes that field every loop, so any write is
+// immediately overwritten. Dashboards must write to "<prefix>/selected" instead.
+func (s *ntSession) checkChooserActive(key string) error {
+	if !strings.HasSuffix(key, "/active") {
+		return nil
+	}
+	prefix := strings.TrimSuffix(key, "/active")
+	s.mu.RLock()
+	pts := s.history[prefix+"/.type"]
+	s.mu.RUnlock()
+	if len(pts) > 0 {
+		if v, ok := pts[len(pts)-1].Value.(string); ok && v == "String Chooser" {
+			return fmt.Errorf(
+				"cannot set SendableChooser 'active' field — the robot re-publishes it each loop and will immediately overwrite your value. Write to %q instead",
+				prefix+"/selected",
+			)
+		}
 	}
 	return nil
 }

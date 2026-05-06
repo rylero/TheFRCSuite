@@ -76,6 +76,35 @@ func TestNTSession_GetRanges_CarryOver(t *testing.T) {
 	}
 }
 
+func TestNTSession_CheckChooserActive_ErrorOnChooserActive(t *testing.T) {
+	s := makeNTSession(map[string][]DataPoint{
+		"/SmartDashboard/Auto Choices/.type":  {{Timestamp: 100, Value: "String Chooser"}},
+		"/SmartDashboard/Auto Choices/active": {{Timestamp: 200, Value: "Option A"}},
+	})
+	err := s.checkChooserActive("/SmartDashboard/Auto Choices/active")
+	if err == nil {
+		t.Fatal("expected error when setting SendableChooser active field, got nil")
+	}
+}
+
+func TestNTSession_CheckChooserActive_OkForNonChooser(t *testing.T) {
+	s := makeNTSession(map[string][]DataPoint{
+		"/RealOutputs/Drive/active": {{Timestamp: 100, Value: 42.0}},
+	})
+	if err := s.checkChooserActive("/RealOutputs/Drive/active"); err != nil {
+		t.Errorf("expected no error for non-chooser active field, got %v", err)
+	}
+}
+
+func TestNTSession_CheckChooserActive_OkForNonActiveField(t *testing.T) {
+	s := makeNTSession(map[string][]DataPoint{
+		"/SmartDashboard/Auto Choices/.type": {{Timestamp: 100, Value: "String Chooser"}},
+	})
+	if err := s.checkChooserActive("/SmartDashboard/Auto Choices/options"); err != nil {
+		t.Errorf("expected no error for non-active field, got %v", err)
+	}
+}
+
 func TestNTSession_GetRanges_Normal(t *testing.T) {
 	s := makeNTSession(map[string][]DataPoint{
 		"/state": {
