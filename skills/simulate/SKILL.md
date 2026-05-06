@@ -125,38 +125,22 @@ ClaudeScope set "/Sim/Enable=true" --session <id>
 
 ### Collecting Data
 
-**⚠️ Always query `range` from `--start 0`, not from the enable timestamp.**
-
-`range` only returns data points where the value *changed*. If you query a window that starts after the last change, it returns `null` — not the value that was current at that time. Querying from 0 guarantees you capture all transitions, then clip to your window manually.
-
+**Finding the exact auto enable time** — use DS transitions:
 ```powershell
-# Correct — always start from 0
-ClaudeScope range /AdvantageKit/RealOutputs/Superstructure/CurrentSuperState --start 0 --end 0 --session <id>
-
-# Wrong — returns null if no changes occurred in the narrow window
-ClaudeScope range /AdvantageKit/RealOutputs/Superstructure/CurrentSuperState --start 17000000 --end 42000000 --session <id>
-```
-
-**⚠️ `get --time` is unreliable for historical lookup** — it may return the latest value rather than the value at the specified timestamp. Use `range --start 0` and manually find the value at any point in time.
-
-**Finding the exact auto enable time** — use DS transitions, not AK Timestamp:
-```powershell
-# Get precise enable time (µs) — use this as your window start
 ClaudeScope range /AdvantageKit/DriverStation/Enabled --start 0 --end 0 --session <id>
 ClaudeScope range /AdvantageKit/DriverStation/Autonomous --start 0 --end 0 --session <id>
 ```
 
 **Time-in-state analysis pattern:**
-1. Query `range` from 0 → end of window for the state field
-2. Find exact enable time `T` from DS Enabled transitions
-3. Clip the returned transitions to `[T, T + duration]`
-4. For each segment, duration = next_timestamp − current_timestamp (last segment ends at window boundary)
-5. Sum durations by state value
+1. Find exact enable time `T` from DS Enabled transitions (above)
+2. Query `range` from `T` → end of the period — if the state hasn't changed since before `T`, the carry-over value is returned as the first point
+3. For each segment, duration = next_timestamp − current_timestamp (last segment ends at window boundary)
+4. Sum durations by state value
 
 | Command | Use for |
 |---|---|
-| `range` | Time-series data — always `--start 0` for string/enum fields |
-| `get` | Current value only (time=0); unreliable for historical lookup |
+| `range` | Time-series data; returns carry-over point if no changes occurred in window |
+| `get` | Value at or before `--time`; `--time 0` returns latest |
 | `stats` | mean/min/max/quartiles for numeric fields |
 | `find-bool` | Time windows where a boolean was true/false |
 | `find-threshold` | Time windows where a value was in a range |
@@ -194,5 +178,3 @@ ClaudeScope set "/Sim/Enable=false" --session <id>
 | Struct fields | Type `structschema` = raw bytes — note as undecodable |
 | Path prefix | `MSYS_NO_PATHCONV=1` only needed in Bash tool, not PowerShell |
 | SendableChooser | Robot re-publishes chooser keys every loop — external `set` is overwritten immediately |
-| `range` nulls | String/enum fields return `null` if no changes in the queried window — always query from 0 |
-| `get --time` | Unreliable for historical state — use `range --start 0` instead |
