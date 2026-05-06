@@ -101,6 +101,12 @@ Returns: `{"mean":<f>,"median":<f>,"min":<f>,"max":<f>,"q1":<f>,"q3":<f>,"avg_de
 MSYS_NO_PATHCONV=1 ClaudeScope set /SmartDashboard/SetSpeed=2.5 --session <id>
 ```
 
+> **SendableChooser warning**: Do NOT set `<prefix>/active` — the robot re-publishes that field every loop and will immediately overwrite your value. To change a chooser selection, write to `<prefix>/selected`:
+> ```bash
+> MSYS_NO_PATHCONV=1 ClaudeScope set "/SmartDashboard/Auto Choices/selected=Depot" --session <id>
+> ```
+> ClaudeScope will return an error if you try to set `/active` on a `String Chooser` topic, telling you the correct key to use.
+
 ### Full machine-readable schema
 ```bash
 ClaudeScope help
