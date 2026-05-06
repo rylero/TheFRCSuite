@@ -48,9 +48,10 @@ import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 
 ### Phase 1 — Setup
 
-1. Run `.\gradlew.bat simulateJava` in the robot project directory as a background process
-2. Poll `ClaudeScope connect 127.0.0.1` every 3 seconds, up to a 90-second timeout (Gradle build + JVM startup is slow on first run)
-3. On successful connection: run `ClaudeScope info --session <id>` to enumerate all NT fields and the current time range
+1. Determine the robot project path: check memory and CLAUDE.md first; if not found, search upward from the current working directory for a `build.gradle` containing `GradleRIO`, or ask the user
+2. Run `.\gradlew.bat simulateJava` in the robot project directory as a background process (use the Bash tool with `run_in_background: true`)
+3. Poll `ClaudeScope connect 127.0.0.1` every 3 seconds, up to a 90-second timeout (Gradle build + JVM startup is slow on first run)
+4. On successful connection: run `ClaudeScope info --session <id>` to enumerate all NT fields and the current time range
 
 ---
 
@@ -107,7 +108,7 @@ MSYS_NO_PATHCONV=1 ClaudeScope set /Sim/Enable=false --session <id>
    ```bash
    ClaudeScope disconnect --session <id>
    ```
-4. Terminate the background sim process
+4. Terminate the background sim process — on Windows use `Stop-Process -Name "java" -ErrorAction SilentlyContinue` via PowerShell, or capture the PID from the background Bash job and kill it directly
 
 ---
 
@@ -116,7 +117,7 @@ MSYS_NO_PATHCONV=1 ClaudeScope set /Sim/Enable=false --session <id>
 | Constraint | Detail |
 |---|---|
 | Windows launch | Use `.\gradlew.bat simulateJava`, not `./gradlew` |
-| NT path prefix | Use `MSYS_NO_PATHCONV=1` before ClaudeScope commands when keys start with `/` |
+| NT path prefix | When using the Bash tool (Git Bash/MSYS2), prefix ClaudeScope commands with `MSYS_NO_PATHCONV=1` when keys start with `/`. Not needed in PowerShell. |
 | AK field pattern | `/RealOutputs/<Subsystem>/<Field>` for subsystem outputs, `/RobotState/<Field>` for robot state |
 | SIM mode NT only | In `SIM` mode the robot uses `NT4Publisher` only — no `.wpilog` file is written |
 | Build time | First `simulateJava` run can take 60-90s — use the full polling timeout |
@@ -124,7 +125,7 @@ MSYS_NO_PATHCONV=1 ClaudeScope set /Sim/Enable=false --session <id>
 
 ## Files Affected
 
-- `C:\Users\ryan\2026-Robot\src\main\java\frc\robot\Robot.java` — `simulationPeriodic()` gets the NT sim-control block (Step 0)
+- `<robot-project>/src/main/java/frc/robot/Robot.java` — `simulationPeriodic()` gets the NT sim-control block (Step 0); path discovered dynamically at runtime
 - `C:\Users\ryan\Dev\TheFRCSuite\skills\simulate\SKILL.md` — the skill file (new)
 
 ## Verification
