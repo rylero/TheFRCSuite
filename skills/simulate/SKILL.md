@@ -84,29 +84,18 @@ import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 
 ### Selecting an Autonomous Routine
 
-**⚠️ CRITICAL: SmartDashboard SendableChooser keys cannot be set via `ClaudeScope set`.**
+Write to `<prefix>/selected` — the robot reads this and updates `active` on the next loop:
+```powershell
+$env:MSYS_NO_PATHCONV=1
+ClaudeScope set "/SmartDashboard/Auto Choices/selected=Left Trench Mid Rush (double)" --session <id>
+```
 
-The robot re-publishes `active`, `default`, and `options` on every loop cycle, immediately overwriting any external write. Setting `/SmartDashboard/<Chooser>/active` will appear to succeed (`{}`) but the value will revert to `""` within 20ms.
+Verify the exact option name first so the chooser accepts it:
+```powershell
+ClaudeScope get "/SmartDashboard/Auto Choices/options" --session <id>
+```
 
-**Workaround — use `setDefaultOption` in code:**
-
-1. Verify the exact option name first (user descriptions may not match exactly):
-   ```powershell
-   ClaudeScope get "/SmartDashboard/Auto Choices/options" --session <id>
-   ```
-2. In `AutoRoutines.java` (or wherever the chooser is built), temporarily change the target auto from `addOption` → `setDefaultOption`:
-   ```java
-   // Before (revert after test):
-   autoChooser.setDefaultOption("Left Trench Mid Rush (double)", command);
-   // Was: autoChooser.addOption(...)
-   ```
-3. Kill the sim, rebuild (`.\gradlew.bat simulateJava`), reconnect ClaudeScope
-4. Verify it took before enabling:
-   ```powershell
-   ClaudeScope get "/SmartDashboard/Auto Choices/active" --session <id>
-   # Should show the chosen auto name
-   ```
-5. **Revert the code change** after the test is complete
+> Do **not** write to `active` — ClaudeScope will return an error if you try, because the robot re-publishes that field every loop and will immediately overwrite it.
 
 ### Enabling the Robot
 
@@ -164,7 +153,7 @@ ClaudeScope set "/Sim/Enable=false" --session <id>
    ```powershell
    Stop-Process -Name "java" -ErrorAction SilentlyContinue
    ```
-5. **Revert any temporary code changes** (e.g. `setDefaultOption` → `addOption`)
+5. **Revert any temporary code changes** if any were made
 
 ---
 
@@ -177,4 +166,4 @@ ClaudeScope set "/Sim/Enable=false" --session <id>
 | NT only in SIM | `NT4Publisher` only — no `.wpilog` written in SIM mode |
 | Struct fields | Type `structschema` = raw bytes — note as undecodable |
 | Path prefix | `MSYS_NO_PATHCONV=1` only needed in Bash tool, not PowerShell |
-| SendableChooser | Robot re-publishes chooser keys every loop — external `set` is overwritten immediately |
+| SendableChooser | Write to `<prefix>/selected`; do not write to `active` (robot-owned, error returned) |
