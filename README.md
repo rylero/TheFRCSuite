@@ -15,7 +15,7 @@ Install the plugin to get all skills in Claude Code:
 
 **Included skills:**
 - `/scope` — Analyze `.wpilog` files and query live NetworkTables via ClaudeScope
-- `/wpilib-reference` — WPILib command-based framework patterns and reference
+- `/simulate` — Launch robot simulation, connect ClaudeScope, and run a goal-driven investigation headlessly
 
 ## ClaudeScope
 
@@ -106,9 +106,3 @@ I could then also ask follow up questions:
   1. First fix: kD = 1.0 (keep kP=30)
   2. If initial snap still feels sluggish after oscillation is gone, then raise kP to 40-50 with kD scaled proportionally
 ```
-
-See [ClaudeScope README](ClaudeScope/) for full documentation.
-
-## TODO
-- Testing reference skill
-- Logging and AdvantageKit reference skill

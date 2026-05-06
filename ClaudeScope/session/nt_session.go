@@ -74,7 +74,7 @@ func (s *ntSession) TimeRange() (int64, int64, error) {
 	return 0, elapsed, nil
 }
 
-func (s *ntSession) GetValues(keys []string, _ int64) (map[string]*DataPoint, error) {
+func (s *ntSession) GetValues(keys []string, t int64) (map[string]*DataPoint, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	result := make(map[string]*DataPoint, len(keys))
@@ -83,8 +83,19 @@ func (s *ntSession) GetValues(keys []string, _ int64) (map[string]*DataPoint, er
 		if len(pts) == 0 {
 			return nil, fmt.Errorf("key not found: %s", key)
 		}
-		cp := pts[len(pts)-1]
-		result[key] = &cp
+		if t == 0 {
+			cp := pts[len(pts)-1]
+			result[key] = &cp
+			continue
+		}
+		// Find the last point at or before t.
+		for i := len(pts) - 1; i >= 0; i-- {
+			if pts[i].Timestamp <= t {
+				cp := pts[i]
+				result[key] = &cp
+				break
+			}
+		}
 	}
 	return result, nil
 }
@@ -102,6 +113,16 @@ func (s *ntSession) GetRanges(keys []string, start, end int64) (map[string][]Dat
 		for _, p := range pts {
 			if p.Timestamp >= start && p.Timestamp <= end {
 				out = append(out, p)
+			}
+		}
+		// If no points fell in the window, include the last value before start
+		// so the caller knows what was active at window open (carry-over).
+		if len(out) == 0 && len(pts) > 0 {
+			for i := len(pts) - 1; i >= 0; i-- {
+				if pts[i].Timestamp <= start {
+					out = append(out, pts[i])
+					break
+				}
 			}
 		}
 		result[key] = out
